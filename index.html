@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pixel Color Changer</title>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        #canvas {
+            border: 1px solid #000;
+            cursor: crosshair;
+            max-width: 100vw;
+            max-height: 100vh;
+        }
+        button {
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Click and drag on the image to turn pixels purple!</h1>
+    <input type="file" id="imageLoader" accept="image/*" />
+    <canvas id="canvas"></canvas>
+    <button id="saveButton">Save Image</button>
+
+    <script>
+        const squareSize = 100; // Size of each square
+        const numberOfSquares = 2; // Change this to adjust the number of squares
+        const imageLoader = document.getElementById('imageLoader');
+        const canvas = document.getElementById('canvas');
+        const context = canvas.getContext('2d');
+        const saveButton = document.getElementById('saveButton');
+        let isDrawing = false;
+
+        // Off-screen canvas for the original image
+        const offScreenCanvas = document.createElement('canvas');
+        const offScreenContext = offScreenCanvas.getContext('2d');
+
+        window.onload = function() {
+            if (imageLoader.files.length > 0) {
+                handleImage({ target: imageLoader });
+            }
+        };
+
+        imageLoader.addEventListener('change', handleImage, false);
+
+        function handleImage(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    const scale = Math.min(window.innerWidth / img.width, window.innerHeight / img.height);
+                    canvas.width = img.width * scale;
+                    canvas.height = img.height * scale;
+                    //context.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    context.fillStyle = `rgba(255, 255, 255, 255)`;
+                    context.fillRect(0, 0, canvas.width, canvas.height);
+                    // Draw the image to the off-screen canvas
+                    offScreenCanvas.width = img.width * scale;
+                    offScreenCanvas.height = img.height * scale;
+                    offScreenContext.drawImage(img, 0, 0, offScreenCanvas.width, offScreenCanvas.height);
+
+                    startDrawingAnimation();
+                }
+                img.src = event.target.result;
+            }
+            reader.readAsDataURL(file);
+        }
+
+        canvas.addEventListener('mousedown', function(event) {
+            isDrawing = true;
+            draw(event);
+        });
+
+        canvas.addEventListener('mousemove', function(event) {
+            if (isDrawing) {
+                draw(event);
+            }
+        });
+
+        canvas.addEventListener('mouseup', function() {
+            isDrawing = false;
+        });
+
+        canvas.addEventListener('mouseout', function() {
+            isDrawing = false;
+        });
+
+        function draw(event) {
+            const rect = canvas.getBoundingClientRect();
+            const x = Math.floor(event.clientX - rect.left);
+            const y = Math.floor(event.clientY - rect.top);
+
+            const purpleColor = [128, 0, 128, 255];
+            context.fillStyle = `rgba(${purpleColor[0]}, ${purpleColor[1]}, ${purpleColor[2]}, ${purpleColor[3]})`;
+            context.fillRect(x, y, 100, 100);
+        }
+
+        function startDrawingAnimation() {
+            for (let i = 0; i < numberOfSquares; i++) {
+                drawNextPixel(i);
+            }
+        }
+
+        function drawNextPixel(squareIndex) {
+            let x = Math.floor(Math.random() * canvas.width);
+            let y = Math.floor(Math.random() * canvas.height);
+            let angle = Math.random() * 2 * Math.PI;
+            const speed = 20;
+            let dx = Math.cos(angle) * speed; 
+            let dy = Math.sin(angle) * speed; 
+
+            let currentColor = [0, 0, 255]; // Start with blue
+            let targetColor = generateRandomColor();
+            const stepSize = 10; 
+
+            function drawPixel() {
+                // Update color towards target
+                for (let i = 0; i < 3; i++) {
+                    currentColor[i] = updateColorComponent(currentColor[i], targetColor[i], stepSize);
+                }
+
+                const hiddenImageData = offScreenContext.getImageData(x, y, squareSize, squareSize).data;
+                const visibleImageData = context.getImageData(x, y, squareSize, squareSize).data;
+
+                for (let i = 0; i < squareSize; i++) {
+                    for (let j = 0; j < squareSize; j++) {
+                        const pixelIndex = ((j + i * squareSize) * 4);
+                        const hiddenColor = [hiddenImageData[pixelIndex], hiddenImageData[pixelIndex + 1], hiddenImageData[pixelIndex + 2]];
+                        const visibleColor = [visibleImageData[pixelIndex], visibleImageData[pixelIndex + 1], visibleImageData[pixelIndex + 2]];
+
+                        if (shouldDraw(currentColor, hiddenColor, visibleColor)) {
+                            visibleImageData[pixelIndex] = currentColor[0];
+                            visibleImageData[pixelIndex + 1] = currentColor[1];
+                            visibleImageData[pixelIndex + 2] = currentColor[2];
+                        }
+                    }
+                }
+                context.putImageData(new ImageData(visibleImageData, squareSize, squareSize), x, y);
+
+
+                // Move square
+                x += dx; 
+                y += dy;
+
+                // Check bounds and bounce
+                if (x < 0) { angle = Math.PI - angle; x = 0; }
+                if (x + squareSize > canvas.width) { angle = Math.PI - angle; x = canvas.width - squareSize; }
+                if (y < 0) { angle = -angle; y = 0; }
+                if (y + squareSize > canvas.height) { angle = -angle; y = canvas.height - squareSize; }
+
+                // Random tweak to angle
+                angle += (Math.random() - 0.5) * 0.1;
+                dx = Math.cos(angle) * speed; 
+                dy = Math.sin(angle) * speed; 
+
+                // Reset target color if reached
+                if (currentColor[0] === targetColor[0] && currentColor[1] === targetColor[1] && currentColor[2] === targetColor[2]) {
+                    targetColor = generateRandomColor();
+                }
+
+                // Schedule the next pixel to be drawn
+                setTimeout(drawPixel, 10);
+            }
+
+            drawPixel(); 
+        }
+
+        function updateColorComponent(current, target, step) {
+            return current < target ? Math.min(current + step, target) : Math.max(current - step, target);
+        }
+
+        function shouldDraw(currentColor, hiddenColor, visibleColor) {
+            const currentDistance = calculateDistanceSquared(currentColor, hiddenColor);
+            const visibleDistance = calculateDistanceSquared(visibleColor,hiddenColor);
+
+            return currentDistance < visibleDistance;
+        }
+
+        function calculateDistanceSquared(colorA, colorB) {
+            return Math.pow(colorA[0] - colorB[0], 2) + 
+                   Math.pow(colorA[1] - colorB[1], 2) + 
+                   Math.pow(colorA[2] - colorB[2], 2);
+        }
+
+        function generateRandomColor() {
+            return [
+                Math.floor(Math.random() * 256),
+                Math.floor(Math.random() * 256),
+                Math.floor(Math.random() * 256)
+            ];
+        }
+
+        saveButton.addEventListener('click', function() {
+            const link = document.createElement('a');
+            link.download = 'modified_image.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        });
+    </script>
+</body>
+</html>
