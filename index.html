@@ -29,8 +29,8 @@
     <button id="saveButton">Save Image</button>
 
     <script>
-        const squareSize = 100; // Size of each square
-        const numberOfSquares = 2; // Change this to adjust the number of squares
+        const squareSize = 100;
+        const numberOfSquares = 2;
         const imageLoader = document.getElementById('imageLoader');
         const canvas = document.getElementById('canvas');
         const context = canvas.getContext('2d');
@@ -118,12 +118,11 @@
             let dx = Math.cos(angle) * speed; 
             let dy = Math.sin(angle) * speed; 
 
-            let currentColor = [0, 0, 255]; // Start with blue
+            let currentColor = [0, 0, 255];
             let targetColor = generateRandomColor();
             const stepSize = 10; 
 
             function drawPixel() {
-                // Update color towards target
                 for (let i = 0; i < 3; i++) {
                     currentColor[i] = updateColorComponent(currentColor[i], targetColor[i], stepSize);
                 }
@@ -147,27 +146,22 @@
                 context.putImageData(new ImageData(visibleImageData, squareSize, squareSize), x, y);
 
 
-                // Move square
                 x += dx; 
                 y += dy;
 
-                // Check bounds and bounce
                 if (x < 0) { angle = Math.PI - angle; x = 0; }
                 if (x + squareSize > canvas.width) { angle = Math.PI - angle; x = canvas.width - squareSize; }
                 if (y < 0) { angle = -angle; y = 0; }
                 if (y + squareSize > canvas.height) { angle = -angle; y = canvas.height - squareSize; }
 
-                // Random tweak to angle
                 angle += (Math.random() - 0.5) * 0.1;
                 dx = Math.cos(angle) * speed; 
                 dy = Math.sin(angle) * speed; 
 
-                // Reset target color if reached
                 if (currentColor[0] === targetColor[0] && currentColor[1] === targetColor[1] && currentColor[2] === targetColor[2]) {
                     targetColor = generateRandomColor();
                 }
 
-                // Schedule the next pixel to be drawn
                 setTimeout(drawPixel, 10);
             }
 
