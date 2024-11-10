@@ -36,9 +36,7 @@ class Brush {
         if (currentColor[0] === targetColor[0] && currentColor[1] === targetColor[1] && currentColor[2] === targetColor[2]) {
             targetColor = generateRandomColor();
         }
-
-        const hiddenImageData = offScreenContext.getImageData(x, y, squareSize, squareSize).data;
-        const visibleImageData = context.getImageData(x, y, squareSize, squareSize).data;
+        
         
         overlayContext.beginPath();
         if(showOutlines){
@@ -61,6 +59,8 @@ class Brush {
                 overlayContext.fillRect(x, y, squareSize, squareSize);
             }
         }
+        const hiddenImageData = offScreenContext.getImageData(x, y, squareSize, squareSize).data;
+        const visibleImageData = context.getImageData(x, y, squareSize, squareSize).data;
 
         for (let i = 0; i < squareSize; i++) {
             for (let j = 0; j < squareSize; j++) {
@@ -113,6 +113,10 @@ const squareSizeInput = document.getElementById('squareSize');
 const colorSpeedInput = document.getElementById('colorSpeed');
 const squareSpeedInput = document.getElementById('squareSpeed');
 const numberOfSquaresInput = document.getElementById('numerOfSquares');
+const drawingColorInput = document.getElementById('drawingColor');
+const backgroundColorInput = document.getElementById('backgroundColor');
+const drawingSizeInput = document.getElementById('drawingSize');
+const drawIfCloserCheckbox = document.getElementById('drawIfCloser');
 
 const canvasContainer = document.getElementById('canvasContainer');
 
@@ -126,7 +130,7 @@ const saveButton = document.getElementById('saveButton');
 
 let isDrawing = false;
 
-const squareProcesses = [];
+let drawingProcess;
 
 let showOutlines;
 let showCurrentColor;
@@ -135,7 +139,14 @@ let squareSize;
 let colorSpeed;
 let squareSpeed;
 let numberOfSquares;
+let drawingColor;
+let backgroundColor;
+let drawingSize;
+let drawIfCloser;
+
 let squares = [];
+let image = null;
+
 
 
 // Off-screen canvas for the original image
@@ -153,10 +164,23 @@ window.onload = function() {
     colorSpeed = parseInt(colorSpeedInput.value);
     squareSpeed = parseInt(squareSpeedInput.value);
     numberOfSquares = parseInt(numberOfSquaresInput.value);
+    drawingColor = drawingColorInput.value;
+    backgroundColor = backgroundColorInput.value;
+    drawingSize = parseInt(drawingSizeInput.value);
+    drawIfCloser = drawIfCloserCheckbox.checked;
 };
 
 window.onresize = function() {
-    
+    const scale = Math.min(window.innerWidth / image.width, window.innerHeight / image.height) * .9;
+    let w = image.width*scale;
+    let h = image.height*scale;
+
+    canvasContainer.style.width = `${w + 2}px`;
+    canvasContainer.style.height = `${h + 2}px`;
+    canvas.style.width = `${w + 2}px`;
+    canvas.style.height = `${h + 2}px`;
+    overlayCanvas.style.width = `${w + 2}px`;
+    overlayCanvas.style.height = `${h + 2}px`;
 }
 
 imageLoader.addEventListener('change', handleImage, false);
@@ -168,32 +192,30 @@ function handleImage(e) {
     const reader = new FileReader();
     reader.onload = function(event) {
         const img = new Image();
+        image = img;
         img.onload = function() {
-            const scale = Math.min(window.innerWidth / img.width, window.innerHeight / img.height);
-            canvas.width = img.width * scale;
-            canvas.height = img.height * scale;
+            const scale = Math.min(window.innerWidth / img.width, window.innerHeight / img.height) * .9;
+            const realWidth = img.width * scale;
+            const realHeight = img.height * scale;
+            canvasContainer.style.width = `${realWidth + 2}px`;
+            canvasContainer.style.height = `${realHeight + 2}px`;
+            canvas.style.width = `${realWidth + 2}px`;
+            canvas.style.height = `${realHeight + 2}px`;
+            overlayCanvas.style.width = `${realWidth + 2}px`;
+            overlayCanvas.style.height = `${realHeight + 2}px`;
+
+            canvas.width = img.width;
+            canvas.height = img.height;
+            context.fillStyle = backgroundColor;
+            context.fillRect(0, 0, canvas.width, canvas.height);
 
             overlayCanvas.width = canvas.width;
             overlayCanvas.height = canvas.height;
-            //context.drawImage(img, 0, 0, canvas.width, canvas.height);
-            context.fillStyle = `rgba(255, 255, 255, 255)`;
-            context.fillRect(0, 0, canvas.width, canvas.height);
 
-            //overlayContext.fillStyle = `rgba(0, 0, 0, .5)`;
-            //overlayContext.fillRect(0, 0, canvas.width, canvas.height);
-            overlayCanvas.lineWidth = 2;
-
-            canvasContainer.style.width = `${canvas.width + 2}px`;
-            canvasContainer.style.height = `${canvas.height + 2}px`;
-            canvas.style.width = `${canvas.width + 2}px`;
-            canvas.style.height = `${canvas.height + 2}px`;
-            overlayCanvas.style.width = `${canvas.width + 2}px`;
-            overlayCanvas.style.height = `${canvas.height + 2}px`;
-
-            // Draw the image to the off-screen canvas
-            offScreenCanvas.width = img.width * scale;
-            offScreenCanvas.height = img.height * scale;
+            offScreenCanvas.width = img.width;
+            offScreenCanvas.height = img.height;
             offScreenContext.drawImage(img, 0, 0, offScreenCanvas.width, offScreenCanvas.height);
+            
             endSquareProcesses();
             startDrawingAnimation();
         }
@@ -203,6 +225,7 @@ function handleImage(e) {
 }
 
 canvas.addEventListener('mousedown', function(event) {
+    if (event.button !== 0) return;
     isDrawing = true;
     draw(event);
 });
@@ -213,11 +236,13 @@ canvas.addEventListener('mousemove', function(event) {
     }
 });
 
-canvas.addEventListener('mouseup', function() {
+canvas.addEventListener('mouseup', function(event) {
+    if (event.button !== 0) return;
     isDrawing = false;
 });
 
-canvas.addEventListener('mouseout', function() {
+canvas.addEventListener('mouseout', function(event) {
+    if (event.button !== 0) return;
     isDrawing = false;
 });
 
@@ -238,15 +263,42 @@ useCirclesCheckbox.addEventListener('change', function() {
 
 squareSizeInput.addEventListener('change', function() {
     squareSize = parseInt(squareSizeInput.value);
+    for (let i = 0; i < squares.length; i++) {
+        squares[i].squareSize = squareSize;
+    }
 });
 
 colorSpeedInput.addEventListener('change', function() {
     colorSpeed = parseInt(colorSpeedInput.value);
+    for (let i = 0; i < squares.length; i++) {
+        squares[i].colorSpeed = colorSpeed;
+    }
 });
 
 squareSpeedInput.addEventListener('change', function() {
     squareSpeed = parseInt(squareSpeedInput.value);
+    for (let i = 0; i < squares.length; i++) {
+        squares[i].speed = squareSpeed;
+    }
 });
+
+drawingColorInput.addEventListener('change', function() {
+    drawingColor = drawingColorInput.value;
+});
+
+backgroundColorInput.addEventListener('change', function() {
+    backgroundColor = backgroundColorInput.value;
+    context.fillStyle = backgroundColor;
+    context.fillRect(0, 0, canvas.width, canvas.height);
+});
+
+drawingSizeInput.addEventListener('change', function() {
+    drawingSize = parseInt(drawingSizeInput.value);
+});
+
+drawIfCloserCheckbox.addEventListener('change', function() {
+    drawIfCloser = drawIfCloserCheckbox.checked;
+})
 
 
 
@@ -276,19 +328,58 @@ numberOfSquaresInput.addEventListener('change', function() {
 });
 
 function endSquareProcesses(){
-    for (let i = 0; i < squareProcesses.length; i++) {
-        clearTimeout(squareProcesses[i]);
-    }
+    squares = [];
+    clearTimeout(drawingProcess);
 }
 
 function draw(event) {
+    const width = drawingSize;
+    const radius = width/2;
     const rect = canvas.getBoundingClientRect();
-    const x = Math.floor(event.clientX - rect.left);
-    const y = Math.floor(event.clientY - rect.top);
+    const scaleX = canvas.width / rect.width
+    const scaleY = canvas.height / rect.height;
+    const x = Math.floor((event.clientX - rect.left) * scaleX);
+    const y = Math.floor((event.clientY - rect.top) * scaleY);
 
-    const purpleColor = [128, 0, 128, 255];
-    context.fillStyle = `rgba(${purpleColor[0]}, ${purpleColor[1]}, ${purpleColor[2]}, ${purpleColor[3]})`;
-    context.fillRect(x, y, 100, 100);
+    if(drawIfCloser){
+        const drawingColorArray = [
+            parseInt(drawingColor.substring(1,3), 16), 
+            parseInt(drawingColor.substring(3,5), 16), 
+            parseInt(drawingColor.substring(5,7), 16)
+        ]; 
+
+
+        const hiddenImageData = offScreenContext.getImageData(x-radius, y -radius, width, width).data;
+        const visibleImageData = context.getImageData(x-radius, y-radius, width, width).data;
+    
+        for (let i = 0; i < width; i++) {
+            for (let j = 0; j < width; j++) {
+                if(circles && Math.pow(i - radius, 2) + Math.pow(j - radius, 2) > radius * radius) continue;
+                const pixelIndex = ((j + i * width) * 4);
+                const hiddenColor = [hiddenImageData[pixelIndex], hiddenImageData[pixelIndex + 1], hiddenImageData[pixelIndex + 2]];
+                const visibleColor = [visibleImageData[pixelIndex], visibleImageData[pixelIndex + 1], visibleImageData[pixelIndex + 2]];
+                
+                if (shouldDraw(drawingColorArray, hiddenColor, visibleColor)) {
+                    visibleImageData[pixelIndex] = drawingColorArray[0];
+                    visibleImageData[pixelIndex + 1] = drawingColorArray[1];
+                    visibleImageData[pixelIndex + 2] = drawingColorArray[2];
+                }
+            }
+        }
+        context.putImageData(new ImageData(visibleImageData, width, width), x-radius, y-radius);
+    }
+    else{
+        context.beginPath();
+        context.fillStyle = drawingColor;
+        if(circles){
+            context.arc(x, y, radius, 0, 2 * Math.PI);
+            context.fill();
+        }
+        else{
+            context.fillRect(x-radius, y-radius, width, width);
+        }
+
+    }
 }
 
 function startDrawingAnimation() {
@@ -313,7 +404,7 @@ function tick(){
     for (let i = 0; i < squares.length; i++) {
         squares[i].draw();
     }
-    setTimeout(tick, 10);
+    drawingProcess = setTimeout(tick, 10);
 }
 
 function updateColorComponent(current, target, step) {

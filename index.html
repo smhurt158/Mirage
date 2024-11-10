@@ -17,8 +17,6 @@
         }
 
         .canvas-size {
-            max-width: 90vw;
-            max-height: 90vh;
         }
 
         button {
@@ -38,6 +36,25 @@
             <label for="imageLoader">Load Image:</label>
             <input type="file" id="imageLoader" accept="image/*" />
         </div>
+        <div class="tool">
+            <label for="backgroundColor">Background Color (will erase):</label>
+            <input type="color" id="backgroundColor" value="#ffffff"/>
+        </div>
+        <div class="tool">
+            <label for="drawingColor">Draw Color:</label>
+            <input type="color" id="drawingColor" value="#800080"/>
+        </div>
+        <div class="tool">
+            <label for="drawingSize">Drawing Size: </label>
+            <input type="number" id="drawingSize" value="100" style="width: 50px;" />
+        </div>
+        <div class="tool">
+            <label for="drawIfCloser">Only Draw If Closer</label>
+            <input type="checkbox" id="drawIfCloser" unchecked />
+        </div>
+    </div>
+    <div id="toolbar2" style="display: flex; margin:3px; gap:10px;">
+        
         <div class="tool">
             <label for="square-outline-checkbox">Show Outlines</label>
             <input type="checkbox" id="square-outline-checkbox" unchecked />
@@ -67,7 +84,7 @@
             <input type="number" id="numerOfSquares" value="2" style="width: 50px;" max="100" min="0" />
         </div>
     </div>
-    <h4>Note: Some settings combinations are not currently stable</h4>
+    <h4>Note: Some settings combinations may not be stable</h4>
     <div id="canvasContainer" class="canvas-size" style="position: relative; width:102px; height:102px;">
         <canvas id="canvas" class="visible-canvas canvas-size" style="z-index: 0;">
         </canvas>
