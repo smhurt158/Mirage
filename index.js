@@ -1,4 +1,110 @@
 
+class Brush {
+    constructor({x, y, color, isCircle, angle, speed, colorSpeed, squareSize, targetColor}) {
+        this.x = x;
+        this.y = y;
+        this.color = color;
+        this.isCircle = isCircle;
+        this.angle = angle;
+        this.speed = speed;
+        this.colorSpeed = colorSpeed;
+        this.squareSize = squareSize;
+        this.targetColor = targetColor;
+    }
+
+    draw(){
+        let radius = this.squareSize / 2;
+        let x = this.x;
+        let y = this.y;
+        let angle = this.angle;
+        let currentColor = this.color;
+        let targetColor = this.targetColor;
+        let squareSize = this.squareSize;
+        let colorSpeed = this.colorSpeed / 10;
+        let isCircle = this.isCircle;
+        let speed = this.speed;
+        
+        let dx = Math.cos(angle) * speed/10; 
+        let dy = Math.sin(angle) * speed/10;
+
+        for (let i = 0; i < 3; i++) {
+            let current = currentColor[i];
+            let target = targetColor[i];
+            currentColor[i] = current < target ? Math.min(current + colorSpeed, target) : Math.max(current - colorSpeed, target);
+        }
+
+        if (currentColor[0] === targetColor[0] && currentColor[1] === targetColor[1] && currentColor[2] === targetColor[2]) {
+            targetColor = generateRandomColor();
+        }
+
+        const hiddenImageData = offScreenContext.getImageData(x, y, squareSize, squareSize).data;
+        const visibleImageData = context.getImageData(x, y, squareSize, squareSize).data;
+        
+        overlayContext.beginPath();
+        if(showOutlines){
+            overlayContext.strokeStyle = `rgba(0,0,0,255)`;
+            if(isCircle){
+                overlayContext.arc(x + radius, y + radius, radius, 0, 2 * Math.PI);
+                overlayContext.stroke();
+            }
+            else{
+                overlayContext.strokeRect(x, y, squareSize, squareSize);
+            }
+        }
+        if(showCurrentColor){
+            overlayContext.fillStyle = `rgba(${currentColor[0]}, ${currentColor[1]}, ${currentColor[2]}, 255)`;
+            if(isCircle){
+                overlayContext.arc(x + radius, y+radius, radius, 0, 2 * Math.PI);
+                overlayContext.fill();
+            }
+            else{
+                overlayContext.fillRect(x, y, squareSize, squareSize);
+            }
+        }
+
+        for (let i = 0; i < squareSize; i++) {
+            for (let j = 0; j < squareSize; j++) {
+                if(isCircle && Math.pow(i - radius, 2) + Math.pow(j - radius, 2) > radius * radius) continue;
+                const pixelIndex = ((j + i * squareSize) * 4);
+                const hiddenColor = [hiddenImageData[pixelIndex], hiddenImageData[pixelIndex + 1], hiddenImageData[pixelIndex + 2]];
+                const visibleColor = [visibleImageData[pixelIndex], visibleImageData[pixelIndex + 1], visibleImageData[pixelIndex + 2]];
+
+                if (shouldDraw(currentColor, hiddenColor, visibleColor)) {
+                    visibleImageData[pixelIndex] = currentColor[0];
+                    visibleImageData[pixelIndex + 1] = currentColor[1];
+                    visibleImageData[pixelIndex + 2] = currentColor[2];
+                }
+            }
+        }
+        context.putImageData(new ImageData(visibleImageData, squareSize, squareSize), x, y);
+
+        x += dx; 
+        y += dy;
+
+        if (x < 0) { 
+            angle = Math.PI - angle; x = 0; 
+        }
+        if (x + squareSize > canvas.width) {
+            angle = Math.PI - angle; x = canvas.width - squareSize;
+        }
+        if (y < 0) { 
+            angle = -angle; y = 0;
+        }
+        if (y + squareSize > canvas.height) { 
+            angle = -angle; y = canvas.height - squareSize;
+        }
+        
+        angle += (Math.random() - 0.5) * 0.1;
+        this.x = x;
+        this.y = y;
+        this.angle = angle;
+        this.color = currentColor;
+        this.targetColor = targetColor;
+
+    }
+}
+
+
 const imageLoader = document.getElementById('imageLoader');
 const squareOutlineCheckbox = document.getElementById('square-outline-checkbox');
 const squareCurrentColorCheckbox = document.getElementById('square-current-color-checkbox');
@@ -29,6 +135,7 @@ let squareSize;
 let colorSpeed;
 let squareSpeed;
 let numberOfSquares;
+let squares = [];
 
 
 // Off-screen canvas for the original image
@@ -124,6 +231,9 @@ squareCurrentColorCheckbox.addEventListener('change', function() {
 
 useCirclesCheckbox.addEventListener('change', function() {    
     circles = useCirclesCheckbox.checked;
+    for (let i = 0; i < squares.length; i++) {
+        squares[i].isCircle = circles;
+    }
 });
 
 squareSizeInput.addEventListener('change', function() {
@@ -144,12 +254,22 @@ numberOfSquaresInput.addEventListener('change', function() {
     const newValue = parseInt(numberOfSquaresInput.value);
     if(newValue < numberOfSquares){
         for (let i = 0; i < numberOfSquares - newValue; i++) {
-            clearTimeout(squareProcesses.pop());
+            squares.pop();
         }
     }
     else if(newValue > numberOfSquares){
         for (let i = 0; i < newValue - numberOfSquares; i++) {
-            startSquare();
+            squares.push(new Brush({
+                x: Math.floor(Math.random() * canvas.width),
+                y: Math.floor(Math.random() * canvas.height),
+                color: generateRandomColor(),
+                isCircle: circles,
+                angle: Math.random() * 2 * Math.PI,
+                speed: squareSpeed,
+                colorSpeed: colorSpeed,
+                squareSize: squareSize,
+                targetColor: generateRandomColor()
+            }));
         }
     }
     numberOfSquares = newValue;
@@ -173,107 +293,27 @@ function draw(event) {
 
 function startDrawingAnimation() {
     for (let i = 0; i < numberOfSquares; i++) {
-        startSquare(i);
+        squares.push(new Brush({
+            x: Math.floor(Math.random() * canvas.width),
+            y: Math.floor(Math.random() * canvas.height),
+            color: generateRandomColor(),
+            isCircle: circles,
+            angle: Math.random() * 2 * Math.PI,
+            speed: squareSpeed,
+            colorSpeed: colorSpeed,
+            squareSize: squareSize,
+            targetColor: generateRandomColor()
+        }));
     }
+    tick();
 }
 
-function startSquare() {
-    let x = Math.floor(Math.random() * canvas.width);
-    let y = Math.floor(Math.random() * canvas.height);
-    let angle = Math.random() * 2 * Math.PI;
-    let dx = Math.cos(angle) * squareSpeed/10; 
-    let dy = Math.sin(angle) * squareSpeed/10;
-    let currentColor = generateRandomColor();
-    let targetColor = generateRandomColor();
-
-    function drawPixel() {
-        let currSquareSize = squareSize;
-        let radius = currSquareSize / 2;
-        for (let i = 0; i < 3; i++) {
-            currentColor[i] = updateColorComponent(currentColor[i], targetColor[i], colorSpeed / 10);
-        }
-
-        const hiddenImageData = offScreenContext.getImageData(x, y, currSquareSize, currSquareSize).data;
-        const visibleImageData = context.getImageData(x, y, currSquareSize, currSquareSize).data;
-        
-        overlayContext.beginPath();
-        if(showOutlines){
-            overlayContext.strokeStyle = `rgba(0,0,0,255)`;
-            if(circles){
-                overlayContext.arc(x + radius, y+radius, radius, 0, 2 * Math.PI);
-                overlayContext.stroke();
-            }
-            else{
-                overlayContext.strokeRect(x, y, currSquareSize, currSquareSize);
-            }
-        }
-        if(showCurrentColor){
-            overlayContext.fillStyle = `rgba(${currentColor[0]}, ${currentColor[1]}, ${currentColor[2]}, 255)`;
-            if(circles){
-                overlayContext.arc(x + radius, y+radius, radius, 0, 2 * Math.PI);
-                overlayContext.fill();
-            }
-            else{
-                overlayContext.fillRect(x, y, currSquareSize, currSquareSize);
-            }
-            
-        }
-        if(showOutlines || showCurrentColor){
-            const lastX = x;
-            const lastY = y;
-            const lastCircles = circles;
-            setTimeout(()=> {
-                if(lastCircles){
-                    //TODO: Clear as circle
-                }
-                overlayContext.clearRect(lastX-2, lastY-2, currSquareSize + 4, currSquareSize + 4);
-            }, 10);
-        }
-
-        for (let i = 0; i < currSquareSize; i++) {
-            for (let j = 0; j < currSquareSize; j++) {
-                if(circles && Math.pow(i - radius, 2) + Math.pow(j - radius, 2) > radius * radius) continue;
-                const pixelIndex = ((j + i * currSquareSize) * 4);
-                const hiddenColor = [hiddenImageData[pixelIndex], hiddenImageData[pixelIndex + 1], hiddenImageData[pixelIndex + 2]];
-                const visibleColor = [visibleImageData[pixelIndex], visibleImageData[pixelIndex + 1], visibleImageData[pixelIndex + 2]];
-
-                if (shouldDraw(currentColor, hiddenColor, visibleColor)) {
-                    visibleImageData[pixelIndex] = currentColor[0];
-                    visibleImageData[pixelIndex + 1] = currentColor[1];
-                    visibleImageData[pixelIndex + 2] = currentColor[2];
-                }
-            }
-        }
-        context.putImageData(new ImageData(visibleImageData, currSquareSize, currSquareSize), x, y);
-
-        x += dx; 
-        y += dy;
-
-        if (x < 0) { 
-            angle = Math.PI - angle; x = 0; 
-        }
-        if (x + currSquareSize > canvas.width) {
-            angle = Math.PI - angle; x = canvas.width - currSquareSize;
-        }
-        if (y < 0) { 
-            angle = -angle; y = 0;
-        }
-        if (y + currSquareSize > canvas.height) { 
-            angle = -angle; y = canvas.height - currSquareSize;
-        }
-        
-        angle += (Math.random() - 0.5) * 0.1;
-        dx = Math.cos(angle) * squareSpeed/10; 
-        dy = Math.sin(angle) * squareSpeed/10; 
-
-        if (currentColor[0] === targetColor[0] && currentColor[1] === targetColor[1] && currentColor[2] === targetColor[2]) {
-            targetColor = generateRandomColor();
-        }
-
-        squareProcesses.push(setTimeout(drawPixel, 10));
+function tick(){
+    overlayContext.clearRect(0, 0, canvas.width, canvas.height);
+    for (let i = 0; i < squares.length; i++) {
+        squares[i].draw();
     }
-
-    drawPixel(); 
+    setTimeout(tick, 10);
 }
 
 function updateColorComponent(current, target, step) {
